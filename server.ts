@@ -594,16 +594,21 @@ const TOOLS: ToolDef[] = [
       const lg = LEAGUES[league];
       let eventId = gameId;
       if (!eventId && team) {
-        // find the team's current/last game from the scoreboard, then the schedule
-        const sb = await getJson(`${SITE}/${lg.path}/scoreboard`);
+        // pick the most relevant game: a live/finished game on today's board wins; otherwise
+        // prefer the most recent COMPLETED game (past-tense "how did the game go" — ESPN's board
+        // shows the upcoming game mid-week, which has no box score yet), then fall back to upcoming.
         const t = await resolveTeam(league, team);
+        const sb = await getJson(`${SITE}/${lg.path}/scoreboard`);
         const ev = (sb?.events ?? []).find((e: any) => e?.competitions?.[0]?.competitors?.some((c: any) => c?.team?.abbreviation === t?.abbr));
-        if (ev) eventId = String(ev.id);
-        if (!eventId && t) {
-          const sch = await getJson(`${SITE}/${lg.path}/teams/${t.id}/schedule`);
-          const evs = (sch?.events ?? []) as any[];
-          const done = [...evs].reverse().find((e) => e?.competitions?.[0]?.status?.type?.state === 'post');
-          eventId = String((done ?? evs[evs.length - 1])?.id ?? '');
+        const evState = ev?.competitions?.[0]?.status?.type?.state;
+        if (ev && (evState === 'in' || evState === 'post')) {
+          eventId = String(ev.id);
+        } else if (t) {
+          const games = await fetchTeamSchedule(league, t.id);
+          const done = [...games].reverse().find((g) => g.state === 'post');
+          eventId = String(done?.id ?? ev?.id ?? games[games.length - 1]?.id ?? '');
+        } else if (ev) {
+          eventId = String(ev.id);
         }
       }
       if (!eventId) return { speak: 'Which game? Name a team or give me a game id.', card: errorCard({ spoken: 'Name a team or give me a game id.' }) };
