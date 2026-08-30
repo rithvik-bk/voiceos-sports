@@ -1,0 +1,10 @@
+{
+  "name": "voiceos-sports-integration",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "NFL & NBA live sports companion inside VoiceOS — ESPN keyless (zero setup). Self-contained MCP server (Node/Bun built-ins only), native notch cards.",
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

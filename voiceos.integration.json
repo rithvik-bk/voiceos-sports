@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "id": "com.rithvik.sports",
+  "version": "1.0.0",
+  "name": "Sports",
+  "summary": "Live NFL & NBA scores, schedules, standings and players by voice",
+  "description": "Your live sports companion. Ask what games are on, check live scores and box scores, follow your team, read standings, look up any player, and get the latest headlines — NFL and NBA — in a native scoreboard you can tap through. No setup and no login: it works the moment you install it.",
+  "categories": ["Sports", "News"],
+  "publisher": {
+    "id": "pub_user",
+    "name": "Rithvik"
+  },
+  "runtime": {
+    "kind": "local-mcp",
+    "command": "/bin/zsh",
+    "args": ["run.sh"]
+  },
+  "icon": "icon.png",
+  "tools": [
+    {
+      "name": "sports_scores",
+      "title": "Live scores",
+      "description": "Live and recent scores as a tappable native scoreboard (tap a game for the box score). \"What games are on\", \"NFL scores\", \"did the Lakers win\". Read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\". Inferable from a team name." },
+          "team": { "type": "string", "description": "Optional team to focus on, e.g. \"49ers\", \"Lakers\"." },
+          "date": { "type": "string", "description": "Optional day YYYY-MM-DD. Default: today / current week." }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sports_game",
+      "title": "Box score",
+      "description": "Full detail for one game — score by quarter, leaders, betting line, live win probability. \"How did the Chiefs game go\", \"box score\". Give a team or a game id. Read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\". Inferable from a team name." },
+          "team": { "type": "string", "description": "A team in the game, e.g. \"Chiefs\"." },
+          "game_id": { "type": "string", "description": "ESPN event id from a sports_scores result (optional)." }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sports_schedule",
+      "title": "Schedule",
+      "description": "Upcoming games. \"What games are on tonight\", \"when do the Warriors play next\", \"NBA schedule\". With a team, that team's schedule; without one, the league slate. Read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\". Inferable from a team name." },
+          "team": { "type": "string", "description": "Optional team, e.g. \"Warriors\"." },
+          "date": { "type": "string", "description": "Optional day YYYY-MM-DD (league slate)." }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sports_team",
+      "title": "Team update",
+      "description": "A quick team update: record, division standing, next game and last result, with the logo. \"How are the 49ers doing\", \"Lakers record\". Read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\". Inferable from a team name." },
+          "team": { "type": "string", "description": "The team, e.g. \"49ers\", \"Celtics\"." }
+        },
+        "required": ["team"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sports_standings",
+      "title": "Standings",
+      "description": "League standings as a ranked table with logos, records, win pct and streak. \"NFL standings\", \"NBA West standings\". Optional conference/division filter. Read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\"." },
+          "group": { "type": "string", "description": "Optional filter, e.g. \"AFC\", \"West\", \"Atlantic\"." }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sports_player",
+      "title": "Player card",
+      "description": "A player card: position, team, jersey and current-season stat line, with headshot. \"Patrick Mahomes stats\", \"how is LeBron doing\". Read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Player name, e.g. \"Patrick Mahomes\"." },
+          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "Optional league hint." }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sports_news",
+      "title": "Headlines",
+      "description": "Latest NFL or NBA headlines, tappable to the full story. \"Sports news\", \"what's happening in the NBA\". Read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\"." }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}
