@@ -474,6 +474,55 @@ const leagueProp = {
   description: 'Which league: "nfl" or "nba". If the user named a team, you can omit this and it will be inferred.',
 };
 
+/** The rich Google-style team hub (GAMES / STANDINGS / PLAYERS). Shared by sports_team and a
+ * team-scoped sports_schedule so "next game" / "schedule" / "how are they doing" all get it. */
+async function buildTeamHub(league: string, t: TeamRef): Promise<ToolResult> {
+  const lg = LEAGUES[league];
+  const [d, sched, div, players] = await Promise.all([
+    getJson(`${SITE}/${lg.path}/teams/${t.id}`),
+    fetchTeamSchedule(league, t.id),
+    teamDivisionStandings(league, t.abbr),
+    topRoster(league, t.id),
+  ]);
+  const team_ = d?.team ?? {};
+  const record = team_?.record?.items?.[0]?.summary ? String(team_.record.items[0].summary) : undefined;
+  const standingSummary = team_?.standingSummary ? String(team_.standingSummary) : undefined;
+  const color = team_?.color ? String(team_.color) : undefined;
+  const upcoming = sched.filter((g) => g.state !== 'post');
+  const recent = sched.filter((g) => g.state === 'post').reverse();
+  const next = upcoming[0];
+  const lastDone = recent[0];
+  return {
+    speak: `${t.display}${record ? ` are ${record}` : ''}${standingSummary ? `, ${standingSummary}` : ''}.${next ? ` Next: ${scoreLine(next)}.` : ''}`,
+    facts: {
+      league,
+      team: t.display,
+      record,
+      standing: standingSummary,
+      next: next ? scoreLine(next) : undefined,
+      last: lastDone ? scoreLine(lastDone) : undefined,
+      upcoming: upcoming.slice(0, 5).map((g) => `${g.away?.abbr} @ ${g.home?.abbr} · ${[g.dateShort, g.when].filter(Boolean).join(' ')}`),
+    },
+    card: teamHubCard({
+      hub: {
+        league,
+        name: team_?.displayName ? String(team_.displayName) : t.display,
+        logo: teamLogo(league, t.abbr),
+        color,
+        record,
+        standing: standingSummary,
+        teamAbbr: t.abbr,
+        upcoming: upcoming.slice(0, 5),
+        recent: recent.slice(0, 4),
+        standings: div.rows,
+        standingsTitle: div.title,
+        players,
+        url: team_?.links?.find?.((l: any) => l?.href)?.href ? String(team_.links.find((l: any) => l.href).href) : undefined,
+      },
+    }),
+  };
+}
+
 const TOOLS: ToolDef[] = [
   {
     name: 'sports_scores',
@@ -602,17 +651,8 @@ const TOOLS: ToolDef[] = [
       if (team) {
         const t = await resolveTeam(league, team);
         if (!t) return { speak: `I couldn't find that ${lg.label} team.`, card: errorCard({ spoken: `Unknown ${lg.label} team.` }) };
-        const games = await fetchTeamSchedule(league, t.id);
-        const upcoming = games.filter((g) => g.state !== 'post');
-        // show the next games first (with one recent result for context), else recent
-        const recent = games.filter((g) => g.state === 'post');
-        const show = (upcoming.length ? upcoming : recent.slice(-8)).slice(0, 10);
-        const next = upcoming[0];
-        return {
-          speak: next ? `${t.display} next: ${scoreLine(next)}.` : `${t.display} schedule loaded.`,
-          facts: { league, team: t.display, count: show.length, next: next ? scoreLine(next) : undefined, games: show.map((g) => ({ matchup: `${g.away?.abbr} @ ${g.home?.abbr}`, when: g.when, dateShort: g.dateShort, state: g.state, status: g.statusShort })) },
-          card: scheduleCard({ league, title: `${t.short || t.display}`, trailing: 'schedule', games: show, emptyHint: 'No games scheduled.' }),
-        };
+        // a team schedule / next-game gets the full Google-style hub (GAMES tab = the schedule)
+        return buildTeamHub(league, t);
       }
       const date = str(args['date']);
       const dateParam = date ? `?dates=${date.replace(/-/g, '')}` : '';
@@ -644,53 +684,7 @@ const TOOLS: ToolDef[] = [
       const lg = LEAGUES[league];
       const t = await resolveTeam(league, team);
       if (!t) return { speak: `I couldn't find that ${lg.label} team.`, card: errorCard({ spoken: `Unknown ${lg.label} team.` }) };
-
-      // gather everything for the hub in parallel
-      const [d, sched, div, players] = await Promise.all([
-        getJson(`${SITE}/${lg.path}/teams/${t.id}`),
-        fetchTeamSchedule(league, t.id),
-        teamDivisionStandings(league, t.abbr),
-        topRoster(league, t.id),
-      ]);
-      const team_ = d?.team ?? {};
-      const record = team_?.record?.items?.[0]?.summary ? String(team_.record.items[0].summary) : undefined;
-      const standingSummary = team_?.standingSummary ? String(team_.standingSummary) : undefined;
-      const color = team_?.color ? String(team_.color) : undefined;
-
-      const upcoming = sched.filter((g) => g.state !== 'post');
-      const recent = sched.filter((g) => g.state === 'post').reverse(); // most recent first
-      const next = upcoming[0];
-      const lastDone = recent[0];
-
-      return {
-        speak: `${t.display}${record ? ` are ${record}` : ''}${standingSummary ? `, ${standingSummary}` : ''}.${next ? ` Next: ${scoreLine(next)}.` : ''}`,
-        facts: {
-          league,
-          team: t.display,
-          record,
-          standing: standingSummary,
-          next: next ? scoreLine(next) : undefined,
-          last: lastDone ? scoreLine(lastDone) : undefined,
-          upcoming: upcoming.slice(0, 5).map((g) => `${g.away?.abbr} @ ${g.home?.abbr} · ${[g.dateShort, g.when].filter(Boolean).join(' ')}`),
-        },
-        card: teamHubCard({
-          hub: {
-            league,
-            name: team_?.displayName ? String(team_.displayName) : t.display,
-            logo: teamLogo(league, t.abbr),
-            color,
-            record,
-            standing: standingSummary,
-            teamAbbr: t.abbr,
-            upcoming: upcoming.slice(0, 5),
-            recent: recent.slice(0, 4),
-            standings: div.rows,
-            standingsTitle: div.title,
-            players,
-            url: team_?.links?.find?.((l: any) => l?.href)?.href ? String(team_.links.find((l: any) => l.href).href) : undefined,
-          },
-        }),
-      };
+      return buildTeamHub(league, t);
     },
   },
   {

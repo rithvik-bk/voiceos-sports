@@ -275,9 +275,9 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 .s-se-mt img{width:20px;height:20px;object-fit:contain;flex:none}
 .s-se-ab{font-size:13px;font-weight:700;color:#fff}
 .s-se-at{font-size:12px;color:rgba(255,255,255,.4)}
-.s-se-when{flex:none;text-align:right}
-.s-se-t{font-size:12.5px;font-weight:700;color:#fff}
-.s-se-d{font-size:11px;color:rgba(255,255,255,.45)}
+.s-se-when{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:64px}
+.s-se-t{font-size:12.5px;font-weight:700;color:#fff;line-height:1.2}
+.s-se-d{font-size:11px;color:rgba(255,255,255,.45);line-height:1.2}
 
 /* team hub (tabbed, Google-style) */
 .s-hub-hd{display:flex;align-items:center;gap:13px;padding:16px 15px 14px;position:relative}
