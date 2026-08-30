@@ -17,7 +17,7 @@ import { clip, esc, renderCustom, renderWidget, setIntegrationMark, vHeader } fr
 import type { Block, RenderedWidget } from './widgetKit.ts';
 import { SPORTS_MARK } from './mark.ts';
 
-export const ACCENT = '#12B76A';
+export const ACCENT = '#013369';
 const TITLE = 'Scores';
 const GLANCE_CAP = 92000; // stay under the host's 96KB widget drop cap
 
