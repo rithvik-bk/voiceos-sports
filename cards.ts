@@ -17,7 +17,8 @@ import { clip, esc, renderCustom, renderWidget, setIntegrationMark, vHeader } fr
 import type { Block, RenderedWidget } from './widgetKit.ts';
 import { SPORTS_MARK } from './mark.ts';
 
-export const ACCENT = '#013369';
+export const ACCENT = '#013369'; // deep navy — use ONLY as a fill under white text (buttons, badges, bars)
+const ACCENT_LT = '#5C9DFF'; // bright azure — the readable-on-dark accent for TEXT and thin lines
 const TITLE = 'Scores';
 const GLANCE_CAP = 92000; // stay under the host's 96KB widget drop cap
 
@@ -137,8 +138,8 @@ const IC_TROPHY =
 /* ─────────────────────────────────── stylesheet ─────────────────────────────────── */
 
 const S_CSS = `
-body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgba(18,183,106,.26),rgba(18,183,106,0) 55%);background-repeat:no-repeat;background-attachment:fixed}
-.s-wrap{display:flex;flex-direction:column}
+body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgba(92,157,255,.20),rgba(92,157,255,0) 55%);background-repeat:no-repeat;background-attachment:fixed}
+.s-wrap{display:flex;flex-direction:column;padding-bottom:8px}
 .s-view{display:flex;flex-direction:column}
 .s-hd{display:flex;align-items:center;gap:9px;padding:12px 15px 11px;background:rgba(255,255,255,.035);border-bottom:1px solid rgba(255,255,255,.07)}
 .s-hd .k-mk{display:flex;align-items:center;flex:none}
@@ -161,7 +162,8 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 .s-rec{font-size:11px;color:rgba(255,255,255,.38);flex:none}
 .s-sc{font-size:16px;font-weight:800;color:#fff;flex:none;min-width:26px;text-align:right;font-variant-numeric:tabular-nums}
 .s-sc.lose{color:rgba(255,255,255,.42);font-weight:700}
-.s-poss{color:${ACCENT}}
+.s-poss{color:${ACCENT_LT}}
+.s-chev{width:15px;height:15px;flex:none;color:rgba(255,255,255,.28)}
 .s-g-status{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:62px}
 .s-pill{font-size:10.5px;font-weight:800;letter-spacing:.02em;border-radius:999px;padding:2px 8px;white-space:nowrap}
 .s-live{color:#fff;background:#E23744}
@@ -174,10 +176,11 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 /* detail view */
 .s-detail{min-height:200px}
 .s-dbar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02)}
-.s-back{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;-webkit-user-select:none;user-select:none}
-.s-back svg{width:17px;height:17px}
+.s-back{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;color:#fff;cursor:pointer;-webkit-user-select:none;user-select:none;background:rgba(255,255,255,.12);border-radius:999px;padding:6px 13px 6px 9px}
+.s-back:hover{background:rgba(255,255,255,.18)}
+.s-back svg{width:16px;height:16px;color:${ACCENT_LT}}
 .s-dbar-tr{margin-left:auto;font-size:11px;font-weight:700;color:rgba(255,255,255,.5)}
-.s-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0}
+.s-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0;padding-bottom:12px}
 .s-match{display:flex;align-items:center;justify-content:center;gap:0;padding:16px 14px 6px}
 .s-mteam{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
 .s-mlogo{width:46px;height:46px;object-fit:contain}
@@ -189,7 +192,7 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 .s-mstat{font-size:11.5px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
 .s-mstat.live{color:#E23744}
 .s-mstat.final{color:rgba(255,255,255,.55)}
-.s-mstat.pre{color:${ACCENT}}
+.s-mstat.pre{color:rgba(255,255,255,.6)}
 .s-mkick{font-size:15px;font-weight:800;color:#fff}
 .s-sec{padding:12px 15px 4px}
 .s-sec-h{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:9px}
@@ -210,7 +213,7 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 .s-ld-cat{font-size:10.5px;font-weight:800;letter-spacing:.03em;color:rgba(255,255,255,.4);flex:none;width:52px;text-transform:uppercase}
 .s-ld-nm{font-size:13.5px;font-weight:650;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
 .s-ld-tm{font-size:11px;color:rgba(255,255,255,.42);flex:none}
-.s-ld-v{font-size:12.5px;font-weight:700;color:${ACCENT};flex:none;white-space:nowrap}
+.s-ld-v{font-size:12.5px;font-weight:700;color:${ACCENT_LT};flex:none;white-space:nowrap}
 /* key-value rows */
 .s-kv{display:flex;flex-direction:column;gap:8px}
 .s-kv-row{display:flex;align-items:center;gap:9px;min-width:0}
@@ -221,10 +224,10 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 .s-wp{margin-top:4px}
 .s-wp-bar{height:9px;border-radius:999px;overflow:hidden;display:flex;background:rgba(255,255,255,.1)}
 .s-wp-a{background:rgba(255,255,255,.32)}
-.s-wp-h{background:${ACCENT}}
+.s-wp-h{background:${ACCENT_LT}}
 .s-wp-lb{display:flex;justify-content:space-between;margin-top:6px;font-size:11.5px;font-weight:700}
 .s-wp-lb .a{color:rgba(255,255,255,.6)}
-.s-wp-lb .h{color:${ACCENT}}
+.s-wp-lb .h{color:${ACCENT_LT}}
 
 /* team card */
 .s-team-hero{display:flex;align-items:center;gap:14px;padding:16px 15px 10px}
@@ -232,7 +235,7 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 .s-team-m{min-width:0;flex:1}
 .s-team-nm{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .s-team-sub{font-size:13px;color:rgba(255,255,255,.55);margin-top:3px}
-.s-team-rec{font-size:15px;font-weight:800;color:${ACCENT};margin-top:2px}
+.s-team-rec{font-size:15px;font-weight:800;color:${ACCENT_LT};margin-top:2px}
 
 /* standings table */
 .s-st{display:flex;flex-direction:column;padding:2px 12px 8px}
@@ -288,8 +291,8 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 .s-tabs{display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,.1);padding:0 6px}
 .s-tab{flex:1;text-align:center;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.5);padding:11px 4px 9px;cursor:pointer;-webkit-user-select:none;user-select:none;border-bottom:2.5px solid transparent;transition:color .12s ease}
 .s-tab:hover{color:rgba(255,255,255,.8)}
-.s-tab.active{color:#fff;border-bottom-color:${ACCENT}}
-.s-tabview{display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.s-tab.active{color:#fff;border-bottom-color:${ACCENT_LT}}
+.s-tabview{display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:10px}
 .s-glabel{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.38);padding:12px 15px 4px}
 .s-hg{display:flex;align-items:center;gap:10px;padding:9px 15px;border-top:1px solid rgba(255,255,255,.06);cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .12s ease}
 .s-hg:hover{background:rgba(255,255,255,.05)}
@@ -318,8 +321,8 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 .s-note{padding:8px 15px 16px;font-size:12.5px;color:rgba(255,255,255,.5);line-height:1.45}
 .s-ft{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 15px 15px}
 .s-ft-l{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,.5)}
-.s-ft-l svg{width:14px;height:14px;color:${ACCENT}}
-.s-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#fff;background:${ACCENT};border-radius:999px;padding:8px 16px;text-decoration:none;cursor:pointer}
+.s-ft-l svg{width:14px;height:14px;color:${ACCENT_LT}}
+.s-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;color:#0A2A4E;background:${ACCENT_LT};border-radius:999px;padding:8px 16px;text-decoration:none;cursor:pointer}
 .s-btn svg{width:14px;height:14px}
 `;
 
@@ -874,7 +877,7 @@ function buildHub(h: TeamHubLike, badge: string | undefined, color: string, nUp:
           .map((r) => {
             const sli = reg.idx(r.logo);
             const slogo = sli >= 0 ? `<img class="s-st-logo" data-img="${sli}" alt="">` : '<span class="s-st-logo"></span>';
-            const me = h.teamAbbr && r.abbr === h.teamAbbr ? ' style="background:rgba(18,183,106,.12)"' : '';
+            const me = h.teamAbbr && r.abbr === h.teamAbbr ? ' style="background:rgba(92,157,255,.16)"' : '';
             return (
               `<div class="s-st-row"${me}><span class="s-st-rk">${r.rank ?? ''}</span>${slogo}` +
               `<span class="s-st-nm">${esc(clip(r.name ?? r.abbr ?? '', 22))}</span>` +
@@ -920,7 +923,7 @@ function buildHub(h: TeamHubLike, badge: string | undefined, color: string, nUp:
       .map((g, i) => {
         return (
           `<div class="s-view s-detail" data-view="g-${i}" style="display:none">` +
-          `<div class="s-dbar"><span class="s-back" data-back>${IC_BACK}${esc(clip(h.name ?? 'Back', 16))}</span><span class="s-dbar-tr">${esc((g.away?.abbr ?? '') + ' @ ' + (g.home?.abbr ?? ''))}</span></div>` +
+          `<div class="s-dbar"><span class="s-back" data-back>${IC_BACK}Back</span><span class="s-dbar-tr">${esc((g.away?.abbr ?? '') + ' @ ' + (g.home?.abbr ?? ''))}</span></div>` +
           `<div class="s-scroll">${detailBody(reg, g)}</div></div>`
         );
       })
