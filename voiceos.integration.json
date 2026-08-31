@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.rithvik.sports",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "Sports",
   "summary": "Live scores, schedules, standings and players across NFL, NBA, MLB, NHL, WNBA, college & soccer — by voice",
   "description": "Your live sports companion across every major league — NFL, NBA, MLB, NHL, WNBA, college football & basketball, and soccer (EPL/UCL/MLS). Ask what games are on, check live scores and box scores, follow your team, read standings, look up any player, and get the latest headlines — in native cards you can tap through. It knows when a league is off-season. No setup and no login: it works the moment you install it.",

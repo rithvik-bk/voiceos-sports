@@ -10,9 +10,16 @@ export const SPORTS_MARK =
   Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
       <rect width="100" height="100" rx="24" fill="#0B5D3B"/>
-      <rect x="24" y="34" width="52" height="34" rx="8" fill="none" stroke="#ffffff" stroke-width="5"/>
-      <line x1="50" y1="34" x2="50" y2="68" stroke="#ffffff" stroke-width="4"/>
-      <circle cx="50" cy="51" r="7" fill="none" stroke="#ffffff" stroke-width="4"/>
+      <g fill="none" stroke="#ffffff">
+        <rect x="13" y="24" width="74" height="52" stroke-width="4.4"/>
+        <line x1="50" y1="24" x2="50" y2="76" stroke-width="3.4"/>
+        <circle cx="50" cy="50" r="12" stroke-width="3.4"/>
+        <rect x="13" y="35" width="15" height="30" stroke-width="3.4"/>
+        <rect x="72" y="35" width="15" height="30" stroke-width="3.4"/>
+        <rect x="13" y="43" width="7" height="14" stroke-width="3.4"/>
+        <rect x="80" y="43" width="7" height="14" stroke-width="3.4"/>
+      </g>
+      <circle cx="50" cy="50" r="2" fill="#ffffff"/>
     </svg>`,
   ).toString('base64');
 
