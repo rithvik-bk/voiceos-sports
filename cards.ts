@@ -42,7 +42,16 @@ function packBlocks(blocks: Block[]): string {
   return pack(renderWidget({ blocks, accent: ACCENT, label: TITLE }));
 }
 function packCustom(body: string, height: number): string {
-  return pack(renderCustom({ body: `<div class="s-wrap">${body}</div>`, css: S_CSS, label: TITLE, height }));
+  // Hidden mark anchor: renderCustom floats an absolutely-positioned integration
+  // badge over the top-left of any card whose body lacks a `data-k-mk` slot (the
+  // host swaps the installed icon into it at runtime). We don't want that glyph
+  // sitting on top of the cards — the integration's identity lives on its tile,
+  // not stamped over every team's brand color. A hidden slot satisfies the host's
+  // swap target while keeping the card surface clean.
+  const markAnchor = '<span class="k-mk" data-k-mk style="display:none"></span>';
+  return pack(
+    renderCustom({ body: `${markAnchor}<div class="s-wrap">${body}</div>`, css: S_CSS, label: TITLE, height }),
+  );
 }
 function glanceLen(s: string): number {
   try {
@@ -332,8 +341,10 @@ body{background:#1c1c1e;background-image:radial-gradient(135% 92% at 50% -8%,rgb
 function headerHtml(title: string, trailing?: string, leagueBadge?: string): string {
   const tr = trailing === undefined ? '' : `<span class="s-hd-tr">${esc(clip(trailing, 26))}</span>`;
   const lb = leagueBadge ? `<span class="s-lg">${esc(leagueBadge)}</span>` : '';
+  // No integration glyph in the header strip — just the title. The card's identity
+  // is its content (team logos, league badge), not a mark stamped at the top.
   return (
-    `<div class="s-hd"><span class="k-mk" data-k-mk><img class="s-ic" src="${SPORTS_MARK}" alt=""></span>` +
+    `<div class="s-hd">` +
     `<span class="s-hd-t">${esc(clip(title, 40))}</span>${lb}${tr}</div>`
   );
 }
