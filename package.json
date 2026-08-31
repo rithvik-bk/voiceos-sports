@@ -5,6 +5,11 @@
   "private": true,
   "description": "NFL & NBA live sports companion inside VoiceOS — ESPN keyless (zero setup). Self-contained MCP server (Node/Bun built-ins only), native notch cards.",
   "engines": {
-    "node": ">=22.18.0"
-  }
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "bun build server.ts --target=node --format=esm --outfile=server.mjs",
+    "start": "node server.mjs"
+  },
+  "main": "server.mjs"
 }
