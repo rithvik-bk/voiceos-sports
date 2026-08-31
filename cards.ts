@@ -56,7 +56,8 @@ function guarded(compose: () => string, fallbackTrailing: string): string {
   try {
     ensureMark();
     return compose();
-  } catch {
+  } catch (e) {
+    try { process.stderr.write(`[sports] card compose threw (${fallbackTrailing}): ${(e as Error)?.message ?? e}\n`); } catch {}
     try {
       return packBlocks([vHeader({ title: TITLE, trailing: fallbackTrailing })]);
     } catch {
@@ -344,7 +345,8 @@ export interface SideLike {
   name?: string;
   score?: number;
   record?: string;
-  logo?: string; // data URI
+  logo?: string; // data URI (baked atlas fast-path, or inlined on demand)
+  logoUrl?: string; // raw ESPN logo URL, inlined by the server before render (college/soccer teams)
   winner?: boolean;
   possession?: boolean;
   linescores?: number[];
@@ -394,6 +396,7 @@ export interface StandingRowLike {
   abbr?: string;
   name?: string;
   logo?: string;
+  logoUrl?: string; // raw ESPN logo URL, inlined by the server before render
   wins?: number;
   losses?: number;
   pct?: string;
@@ -567,40 +570,47 @@ export function scoreboardCard(data: {
   games: GameLike[];
   leadersByGame?: Record<string, LeaderLike[]>;
   emptyHint?: string;
+  note?: string;
 }): string {
   return guarded(() => {
     const badge = data.league ? data.league.toUpperCase() : undefined;
     const all = Array.isArray(data.games) ? data.games : [];
+    const noteHtml = data.note ? `<div class="s-note" style="padding-top:10px;padding-bottom:2px">${esc(clip(data.note, 120))}</div>` : '';
     if (all.length === 0) {
       const body =
         headerHtml(data.title, data.trailing, badge) +
         `<div class="s-empty"><b>No games</b><span>${esc(clip(data.emptyHint ?? 'No games on the schedule for that day.', 96))}</span></div>`;
-      return packCustom(body, 122);
+      return packCustom(body, 132);
     }
 
     // Build rich, then step display count down until the glance fits under the host cap.
-    const steps = [Math.min(all.length, 12), 9, 7, 5, 4, 3];
+    const steps = [Math.min(all.length, 12), 9, 7, 5, 4, 3, 2];
     let chosen = '';
     for (const n of steps) {
-      const reg = new ImgReg();
-      const games = all.slice(0, n);
-      const rows = games.map((g, i) => gameRow(reg, g, i)).join('');
-      const overflow = all.length - games.length;
-      const more = overflow > 0 ? `<div class="s-note">+${overflow} more game${overflow === 1 ? '' : 's'} not shown</div>` : '';
-      const home = `<div class="s-view" data-view="home">${headerHtml(data.title, data.trailing ?? `${all.length} game${all.length === 1 ? '' : 's'}`, badge)}<div class="s-list">${rows}</div>${more}</div>`;
-      const details = games
-        .map((g, i) => {
-          const leaders = data.leadersByGame?.[g.id ?? ''] ?? [];
-          return (
-            `<div class="s-view s-detail" data-view="g-${i}" style="display:none">` +
-            `<div class="s-dbar"><span class="s-back" data-back>${IC_BACK}Scores</span><span class="s-dbar-tr">${esc((g.away?.abbr ?? '') + ' @ ' + (g.home?.abbr ?? ''))}</span></div>` +
-            `<div class="s-scroll">${detailBody(reg, g, leaders)}</div></div>`
-          );
-        })
-        .join('');
-      const card = packCustom(reg.script() + home + details + IMG_HYDRATE + NAV_SCRIPT, 420);
-      chosen = card;
-      if (glanceLen(card) <= GLANCE_CAP) break;
+      try {
+        const reg = new ImgReg();
+        const games = all.slice(0, n);
+        const rows = games.map((g, i) => gameRow(reg, g, i)).join('');
+        const overflow = all.length - games.length;
+        const more = overflow > 0 ? `<div class="s-note">+${overflow} more game${overflow === 1 ? '' : 's'} not shown</div>` : '';
+        const home = `<div class="s-view" data-view="home">${headerHtml(data.title, data.trailing ?? `${all.length} game${all.length === 1 ? '' : 's'}`, badge)}${noteHtml}<div class="s-list">${rows}</div>${more}</div>`;
+        const details = games
+          .map((g, i) => {
+            const leaders = data.leadersByGame?.[g.id ?? ''] ?? [];
+            return (
+              `<div class="s-view s-detail" data-view="g-${i}" style="display:none">` +
+              `<div class="s-dbar"><span class="s-back" data-back>${IC_BACK}Scores</span><span class="s-dbar-tr">${esc((g.away?.abbr ?? '') + ' @ ' + (g.home?.abbr ?? ''))}</span></div>` +
+              `<div class="s-scroll">${detailBody(reg, g, leaders)}</div></div>`
+            );
+          })
+          .join('');
+        const card = packCustom(reg.script() + home + details + IMG_HYDRATE + NAV_SCRIPT, 420);
+        chosen = card;
+        if (glanceLen(card) <= GLANCE_CAP) break;
+      } catch {
+        // this many games overflows the host HTML cap → try fewer (keeps logos, drops game count)
+        continue;
+      }
     }
     return chosen;
   }, 'Scores');
@@ -648,20 +658,20 @@ export function teamCard(data: { team: TeamCardLike }): string {
 
 /* ─────────────────────────────────── standings ─────────────────────────────────── */
 
-export function standingsCard(data: { league?: string; title: string; rows: StandingRowLike[]; extraLabel?: string; emptyHint?: string }): string {
+export function standingsCard(data: { league?: string; title: string; rows: StandingRowLike[]; extraLabel?: string; emptyHint?: string; note?: string }): string {
   return guarded(() => {
     const badge = data.league?.toUpperCase();
     const all = Array.isArray(data.rows) ? data.rows : [];
+    const noteHtml = data.note ? `<div class="s-note" style="padding-top:10px;padding-bottom:2px">${esc(clip(data.note, 120))}</div>` : '';
     if (!all.length) {
       const body = headerHtml(data.title, undefined, badge) + `<div class="s-empty"><b>No standings</b><span>${esc(clip(data.emptyHint ?? 'Standings unavailable.', 90))}</span></div>`;
       return packCustom(body, 122);
     }
-    const reg = new ImgReg();
-    const steps = [Math.min(all.length, 16), 12, 10, 8, 6];
+    const steps = [Math.min(all.length, 16), 12, 10, 8, 6, 4];
     let chosen = '';
     for (const n of steps) {
-      reg.arr = [];
-      (reg as any).map = new Map();
+      try {
+      const reg = new ImgReg();
       const rows = all.slice(0, n);
       const extraLabel = data.extraLabel ?? 'STRK';
       const hd = `<div class="s-st-hd"><span class="s-st-rk"></span><span style="flex:1"></span><span class="s-st-col wl">W-L</span><span class="s-st-col">PCT</span><span class="s-st-col sub">${esc(clip(extraLabel, 6))}</span></div>`;
@@ -681,10 +691,11 @@ export function standingsCard(data: { league?: string; title: string; rows: Stan
         .join('');
       const overflow = all.length - rows.length;
       const more = overflow > 0 ? `<div class="s-note">+${overflow} more</div>` : '';
-      const body = headerHtml(data.title, `${all.length} teams`, badge) + `<div class="s-st">${hd}${body_rows}</div>${more}`;
-      const card = packCustom(reg.script() + body + IMG_HYDRATE, Math.min(64 + rows.length * 38, 420));
+      const body = headerHtml(data.title, `${all.length} teams`, badge) + noteHtml + `<div class="s-st">${hd}${body_rows}</div>${more}`;
+      const card = packCustom(reg.script() + body + IMG_HYDRATE, Math.min(64 + rows.length * 38 + (data.note ? 30 : 0), 440));
       chosen = card;
       if (glanceLen(card) <= GLANCE_CAP) break;
+      } catch { continue; }
     }
     return chosen;
   }, 'Standings');
@@ -700,12 +711,11 @@ export function scheduleCard(data: { league?: string; title: string; trailing?: 
       const body = headerHtml(data.title, data.trailing, badge) + `<div class="s-empty"><b>No games</b><span>${esc(clip(data.emptyHint ?? 'Nothing scheduled.', 90))}</span></div>`;
       return packCustom(body, 122);
     }
-    const reg = new ImgReg();
-    const steps = [Math.min(all.length, 10), 8, 6, 5, 4];
+    const steps = [Math.min(all.length, 10), 8, 6, 5, 4, 3];
     let chosen = '';
     for (const n of steps) {
-      reg.arr = [];
-      (reg as any).map = new Map();
+      try {
+      const reg = new ImgReg();
       const games = all.slice(0, n);
       const rows = games
         .map((g) => {
@@ -730,6 +740,7 @@ export function scheduleCard(data: { league?: string; title: string; trailing?: 
       const card = packCustom(reg.script() + body + IMG_HYDRATE, Math.min(56 + games.length * 46, 420));
       chosen = card;
       if (glanceLen(card) <= GLANCE_CAP) break;
+      } catch { continue; }
     }
     return chosen;
   }, 'Schedule');
@@ -801,6 +812,7 @@ export interface TeamHubLike {
   league?: string;
   name?: string;
   logo?: string;
+  logoUrl?: string;
   color?: string; // brand hex (no #)
   record?: string;
   standing?: string;
@@ -844,12 +856,16 @@ export function teamHubCard(data: { hub: TeamHubLike }): string {
     const badge = h.league?.toUpperCase();
     const color = h.color && /^[0-9a-fA-F]{6}$/.test(h.color) ? `#${h.color}` : '#242426';
     // build rich, step down item counts until the glance fits under the host cap
-    const steps: [number, number, number][] = [[5, 4, 8], [4, 3, 6], [3, 2, 6], [3, 2, 4]];
+    const steps: [number, number, number][] = [[5, 4, 8], [4, 3, 6], [3, 2, 6], [3, 2, 4], [2, 1, 3]];
     let chosen = '';
     for (const [nUp, nRec, nSt] of steps) {
-      const card = buildHub(h, badge, color, nUp, nRec, nSt);
-      chosen = card;
-      if (glanceLen(card) <= GLANCE_CAP) break;
+      try {
+        const card = buildHub(h, badge, color, nUp, nRec, nSt);
+        chosen = card;
+        if (glanceLen(card) <= GLANCE_CAP) break;
+      } catch {
+        continue;
+      }
     }
     return chosen;
   }, 'Team');

@@ -3,9 +3,12 @@
   "id": "com.rithvik.sports",
   "version": "1.0.0",
   "name": "Sports",
-  "summary": "Live NFL & NBA scores, schedules, standings and players by voice",
-  "description": "Your live sports companion. Ask what games are on, check live scores and box scores, follow your team, read standings, look up any player, and get the latest headlines — NFL and NBA — in a native scoreboard you can tap through. No setup and no login: it works the moment you install it.",
-  "categories": ["Sports", "News"],
+  "summary": "Live scores, schedules, standings and players across NFL, NBA, MLB, NHL, WNBA, college & soccer — by voice",
+  "description": "Your live sports companion across every major league — NFL, NBA, MLB, NHL, WNBA, college football & basketball, and soccer (EPL/UCL/MLS). Ask what games are on, check live scores and box scores, follow your team, read standings, look up any player, and get the latest headlines — in native cards you can tap through. It knows when a league is off-season. No setup and no login: it works the moment you install it.",
+  "categories": [
+    "Sports",
+    "News"
+  ],
   "publisher": {
     "id": "pub_user",
     "name": "Rithvik"
@@ -13,7 +16,9 @@
   "runtime": {
     "kind": "local-mcp",
     "command": "/bin/zsh",
-    "args": ["run.sh"]
+    "args": [
+      "run.sh"
+    ]
   },
   "icon": "icon.png",
   "tools": [
@@ -24,9 +29,30 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\". Inferable from a team name." },
-          "team": { "type": "string", "description": "Optional team to focus on, e.g. \"49ers\", \"Lakers\"." },
-          "date": { "type": "string", "description": "Optional day YYYY-MM-DD. Default: today / current week." }
+          "league": {
+            "type": "string",
+            "enum": [
+              "nfl",
+              "nba",
+              "mlb",
+              "nhl",
+              "wnba",
+              "cfb",
+              "mcbb",
+              "epl",
+              "ucl",
+              "mls"
+            ],
+            "description": "Which league: nfl, nba, mlb, nhl, wnba, cfb (college football), mcbb (college basketball), epl/ucl/mls (soccer). Inferable from a team name (ambiguous names resolve to the in-season league)."
+          },
+          "team": {
+            "type": "string",
+            "description": "Optional team to focus on, e.g. \"49ers\", \"Lakers\"."
+          },
+          "date": {
+            "type": "string",
+            "description": "Optional day YYYY-MM-DD. Default: today / current week."
+          }
         },
         "additionalProperties": false
       }
@@ -38,9 +64,30 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\". Inferable from a team name." },
-          "team": { "type": "string", "description": "A team in the game, e.g. \"Chiefs\"." },
-          "game_id": { "type": "string", "description": "ESPN event id from a sports_scores result (optional)." }
+          "league": {
+            "type": "string",
+            "enum": [
+              "nfl",
+              "nba",
+              "mlb",
+              "nhl",
+              "wnba",
+              "cfb",
+              "mcbb",
+              "epl",
+              "ucl",
+              "mls"
+            ],
+            "description": "Which league: nfl, nba, mlb, nhl, wnba, cfb (college football), mcbb (college basketball), epl/ucl/mls (soccer). Inferable from a team name (ambiguous names resolve to the in-season league)."
+          },
+          "team": {
+            "type": "string",
+            "description": "A team in the game, e.g. \"Chiefs\"."
+          },
+          "game_id": {
+            "type": "string",
+            "description": "ESPN event id from a sports_scores result (optional)."
+          }
         },
         "additionalProperties": false
       }
@@ -52,9 +99,30 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\". Inferable from a team name." },
-          "team": { "type": "string", "description": "Optional team, e.g. \"Warriors\"." },
-          "date": { "type": "string", "description": "Optional day YYYY-MM-DD (league slate)." }
+          "league": {
+            "type": "string",
+            "enum": [
+              "nfl",
+              "nba",
+              "mlb",
+              "nhl",
+              "wnba",
+              "cfb",
+              "mcbb",
+              "epl",
+              "ucl",
+              "mls"
+            ],
+            "description": "Which league: nfl, nba, mlb, nhl, wnba, cfb (college football), mcbb (college basketball), epl/ucl/mls (soccer). Inferable from a team name (ambiguous names resolve to the in-season league)."
+          },
+          "team": {
+            "type": "string",
+            "description": "Optional team, e.g. \"Warriors\"."
+          },
+          "date": {
+            "type": "string",
+            "description": "Optional day YYYY-MM-DD (league slate)."
+          }
         },
         "additionalProperties": false
       }
@@ -66,10 +134,30 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\". Inferable from a team name." },
-          "team": { "type": "string", "description": "The team, e.g. \"49ers\", \"Celtics\"." }
+          "league": {
+            "type": "string",
+            "enum": [
+              "nfl",
+              "nba",
+              "mlb",
+              "nhl",
+              "wnba",
+              "cfb",
+              "mcbb",
+              "epl",
+              "ucl",
+              "mls"
+            ],
+            "description": "Which league: nfl, nba, mlb, nhl, wnba, cfb (college football), mcbb (college basketball), epl/ucl/mls (soccer). Inferable from a team name (ambiguous names resolve to the in-season league)."
+          },
+          "team": {
+            "type": "string",
+            "description": "The team, e.g. \"49ers\", \"Celtics\"."
+          }
         },
-        "required": ["team"],
+        "required": [
+          "team"
+        ],
         "additionalProperties": false
       }
     },
@@ -80,8 +168,26 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\"." },
-          "group": { "type": "string", "description": "Optional filter, e.g. \"AFC\", \"West\", \"Atlantic\"." }
+          "league": {
+            "type": "string",
+            "enum": [
+              "nfl",
+              "nba",
+              "mlb",
+              "nhl",
+              "wnba",
+              "cfb",
+              "mcbb",
+              "epl",
+              "ucl",
+              "mls"
+            ],
+            "description": "Which league: nfl, nba, mlb, nhl, wnba, cfb (college football), mcbb (college basketball), epl/ucl/mls (soccer). Inferable from a team name (ambiguous names resolve to the in-season league)."
+          },
+          "group": {
+            "type": "string",
+            "description": "Optional filter, e.g. \"AFC\", \"West\", \"Atlantic\"."
+          }
         },
         "additionalProperties": false
       }
@@ -93,10 +199,30 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "description": "Player name, e.g. \"Patrick Mahomes\"." },
-          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "Optional league hint." }
+          "name": {
+            "type": "string",
+            "description": "Player name, e.g. \"Patrick Mahomes\"."
+          },
+          "league": {
+            "type": "string",
+            "enum": [
+              "nfl",
+              "nba",
+              "mlb",
+              "nhl",
+              "wnba",
+              "cfb",
+              "mcbb",
+              "epl",
+              "ucl",
+              "mls"
+            ],
+            "description": "Which league: nfl, nba, mlb, nhl, wnba, cfb (college football), mcbb (college basketball), epl/ucl/mls (soccer). Inferable from a team name (ambiguous names resolve to the in-season league)."
+          }
         },
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "additionalProperties": false
       }
     },
@@ -107,7 +233,22 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "league": { "type": "string", "enum": ["nfl", "nba"], "description": "\"nfl\" or \"nba\"." }
+          "league": {
+            "type": "string",
+            "enum": [
+              "nfl",
+              "nba",
+              "mlb",
+              "nhl",
+              "wnba",
+              "cfb",
+              "mcbb",
+              "epl",
+              "ucl",
+              "mls"
+            ],
+            "description": "Which league: nfl, nba, mlb, nhl, wnba, cfb (college football), mcbb (college basketball), epl/ucl/mls (soccer). Inferable from a team name (ambiguous names resolve to the in-season league)."
+          }
         },
         "additionalProperties": false
       }

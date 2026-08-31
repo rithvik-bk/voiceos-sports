@@ -41,17 +41,49 @@ function log(line: string): void {
 
 /* ─────────────────────────── leagues ─────────────────────────── */
 
+type Sport = 'football' | 'basketball' | 'baseball' | 'hockey' | 'soccer';
 interface League {
   key: string;
   path: string; // ESPN sport/league path
   label: string;
-  periodWord: 'Q'; // both football and basketball use quarters
+  sport: Sport;
+  regPeriods: number; // regulation periods: 4 quarters, 9 innings, 3 hockey periods, 2 halves
+  periodWord: string; // live-status prefix: Q / P / H (baseball & soccer handled specially)
+  inSeasonMonths: number[]; // ET months (1-12) the league is normally active — for off-season labeling + ambiguity
+  startsLabel: string; // human phrase for when the season starts (used in the off-season note)
+  aliases: string[]; // extra terms normLeague matches
 }
+// The order here is also the tie-break order when a team name resolves in more than one league.
 const LEAGUES: Record<string, League> = {
-  nfl: { key: 'nfl', path: 'football/nfl', label: 'NFL', periodWord: 'Q' },
-  nba: { key: 'nba', path: 'basketball/nba', label: 'NBA', periodWord: 'Q' },
+  nfl: { key: 'nfl', path: 'football/nfl', label: 'NFL', sport: 'football', regPeriods: 4, periodWord: 'Q', inSeasonMonths: [9, 10, 11, 12, 1, 2], startsLabel: 'in September', aliases: ['nfl', 'football', 'pro football'] },
+  nba: { key: 'nba', path: 'basketball/nba', label: 'NBA', sport: 'basketball', regPeriods: 4, periodWord: 'Q', inSeasonMonths: [10, 11, 12, 1, 2, 3, 4, 5, 6], startsLabel: 'in late October', aliases: ['nba', 'pro basketball'] },
+  mlb: { key: 'mlb', path: 'baseball/mlb', label: 'MLB', sport: 'baseball', regPeriods: 9, periodWord: '', inSeasonMonths: [3, 4, 5, 6, 7, 8, 9, 10], startsLabel: 'in late March', aliases: ['mlb', 'baseball', 'major league baseball'] },
+  nhl: { key: 'nhl', path: 'hockey/nhl', label: 'NHL', sport: 'hockey', regPeriods: 3, periodWord: 'P', inSeasonMonths: [10, 11, 12, 1, 2, 3, 4, 5, 6], startsLabel: 'in October', aliases: ['nhl', 'hockey'] },
+  wnba: { key: 'wnba', path: 'basketball/wnba', label: 'WNBA', sport: 'basketball', regPeriods: 4, periodWord: 'Q', inSeasonMonths: [5, 6, 7, 8, 9, 10], startsLabel: 'in May', aliases: ['wnba', 'womens basketball', "women's basketball"] },
+  cfb: { key: 'cfb', path: 'football/college-football', label: 'CFB', sport: 'football', regPeriods: 4, periodWord: 'Q', inSeasonMonths: [8, 9, 10, 11, 12, 1], startsLabel: 'in late August', aliases: ['cfb', 'college football', 'ncaaf', 'college fb', 'ncaa football'] },
+  mcbb: { key: 'mcbb', path: 'basketball/mens-college-basketball', label: 'NCAAM', sport: 'basketball', regPeriods: 2, periodWord: 'H', inSeasonMonths: [11, 12, 1, 2, 3, 4], startsLabel: 'in November', aliases: ['ncaam', 'college basketball', 'cbb', 'march madness', 'ncaa basketball'] },
+  epl: { key: 'epl', path: 'soccer/eng.1', label: 'EPL', sport: 'soccer', regPeriods: 2, periodWord: 'H', inSeasonMonths: [8, 9, 10, 11, 12, 1, 2, 3, 4, 5], startsLabel: 'in August', aliases: ['epl', 'premier league', 'soccer', 'english premier league', 'football club'] },
+  ucl: { key: 'ucl', path: 'soccer/uefa.champions', label: 'UCL', sport: 'soccer', regPeriods: 2, periodWord: 'H', inSeasonMonths: [9, 10, 11, 12, 1, 2, 3, 4, 5], startsLabel: 'in September', aliases: ['ucl', 'champions league', 'uefa'] },
+  mls: { key: 'mls', path: 'soccer/usa.1', label: 'MLS', sport: 'soccer', regPeriods: 2, periodWord: 'H', inSeasonMonths: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], startsLabel: 'in late February', aliases: ['mls', 'major league soccer'] },
 };
 const DEFAULT_LEAGUE = 'nfl';
+const LEAGUE_KEYS = Object.keys(LEAGUES);
+
+/** Current month in ET (1-12). */
+function etMonth(): number {
+  return Number(new Date().toLocaleString('en-US', { timeZone: 'America/New_York', month: 'numeric' }));
+}
+/** Is the league normally active right now? Used for off-season labeling + team-name disambiguation. */
+function inSeasonNow(league: string): boolean {
+  return LEAGUES[league]?.inSeasonMonths.includes(etMonth()) ?? true;
+}
+/** When a league is between seasons, a plain-English note (ESPN keeps serving last season's final
+ * standings/records, so the intelligence is telling the user that's what they're looking at). */
+function seasonNote(league: string): string | undefined {
+  if (inSeasonNow(league)) return undefined;
+  const lg = LEAGUES[league];
+  return `Last season's final — the ${lg.label} season starts ${lg.startsLabel}.`;
+}
 
 /* ─────────────────────────── ESPN fetch ─────────────────────────── */
 
@@ -113,6 +145,40 @@ async function fetchBytesDataUri(url: string, cap = 40000): Promise<string | und
   return `data:image/png;base64,${buf.toString('base64')}`;
 }
 
+/* ─────────────────────────── on-demand logos ─────────────────────────── */
+/* The baked atlas (logos.ts) covers NFL/NBA instantly. For every other league — MLB, NHL, WNBA,
+ * college (hundreds of teams), soccer — we inline the team's logo from its ESPN URL on demand,
+ * shrunk through the combiner so it stays tiny and CSP-safe, cached per URL for the process life. */
+const logoCache = new Map<string, string | undefined>();
+async function inlineLogo(url?: string): Promise<string | undefined> {
+  if (!url) return undefined;
+  if (logoCache.has(url)) return logoCache.get(url);
+  let u = url.replace(/^http:/, 'https:');
+  if (/\.espncdn\.com/.test(u) && !/combiner/.test(u)) {
+    try {
+      u = `https://a.espncdn.com/combiner/i?img=${encodeURIComponent(new URL(u).pathname.replace('/scoreboard/', '/'))}&h=40&w=40&scale=crop&format=png`;
+    } catch {
+      /* keep original */
+    }
+  }
+  const d = await fetchBytesDataUri(u, 24000);
+  logoCache.set(url, d);
+  return d;
+}
+/** Fill `.logo` (data URI) from `.logoUrl` for any object that has a URL but no atlas hit. */
+async function hydrateLogos(objs: ({ logo?: string; logoUrl?: string } | undefined)[]): Promise<void> {
+  const need = objs.filter((o): o is { logo?: string; logoUrl?: string } => !!o && !o.logo && !!o.logoUrl);
+  await Promise.all(
+    need.map(async (o) => {
+      const d = await inlineLogo(o.logoUrl);
+      if (d) o.logo = d;
+    }),
+  );
+}
+function gameSides(games: GameLike[]): (SideLike | undefined)[] {
+  return games.flatMap((g) => [g.away, g.home]);
+}
+
 /* ─────────────────────────── arg coercion ─────────────────────────── */
 
 function str(v: unknown): string | undefined {
@@ -121,11 +187,18 @@ function str(v: unknown): string | undefined {
   return t || undefined;
 }
 function normLeague(v: unknown): string | undefined {
-  const s = (str(v) ?? '').toLowerCase();
+  const s = (str(v) ?? '').toLowerCase().trim();
   if (!s) return undefined;
-  if (/nfl|football/.test(s)) return 'nfl';
-  if (/nba|basketball/.test(s)) return 'nba';
-  return LEAGUES[s] ? s : undefined;
+  if (LEAGUES[s]) return s;
+  // longest alias first so "college football" beats "football", "college basketball" beats "basketball"
+  const matches: { key: string; len: number }[] = [];
+  for (const key of LEAGUE_KEYS) {
+    for (const a of LEAGUES[key].aliases) {
+      if (s === a || s.includes(a)) matches.push({ key, len: a.length });
+    }
+  }
+  matches.sort((a, b) => b.len - a.len);
+  return matches[0]?.key;
 }
 
 /* ─────────────────────────── team resolver ─────────────────────────── */
@@ -163,7 +236,7 @@ async function teamsOf(league: string): Promise<TeamRef[]> {
 
 const NICK_ALIASES: Record<string, string> = {
   niners: '49ers',
-  hawks: 'seahawks', // NFL Seahawks; NBA has Atlanta Hawks — league-scoped resolve disambiguates
+  // no cross-league nick rewrites — exact nickname matching (league-scoped) disambiguates on its own
 };
 
 async function resolveTeam(league: string, query: string): Promise<TeamRef | null> {
@@ -186,16 +259,20 @@ async function resolveTeam(league: string, query: string): Promise<TeamRef | nul
   return contains ?? null;
 }
 
-/** Infer league from a team name when the caller didn't pass one. */
+/** Infer league from a team name when the caller didn't pass one. Ambiguous names (Cardinals =
+ * NFL+MLB, Giants = NFL+MLB, Rangers = MLB+NHL, Panthers = NFL+NHL, Kings = NHL+NBA) resolve to the
+ * league that's in season now; ties fall back to LEAGUE_KEYS order (NFL, NBA, MLB, ...). */
 async function guessLeague(teamQuery: string | undefined, explicit: string | undefined): Promise<string> {
   if (explicit) return explicit;
-  if (teamQuery) {
-    for (const key of ['nfl', 'nba']) {
-      const t = await resolveTeam(key, teamQuery);
-      if (t) return key;
-    }
-  }
-  return DEFAULT_LEAGUE;
+  if (!teamQuery) return DEFAULT_LEAGUE;
+  // resolve across all leagues in parallel (team lists cache after the first hit)
+  const resolved = await Promise.all(LEAGUE_KEYS.map((key) => resolveTeam(key, teamQuery).then((t) => (t ? key : null))));
+  const hits = resolved.filter((k): k is string => !!k);
+  if (!hits.length) return DEFAULT_LEAGUE;
+  if (hits.length === 1) return hits[0];
+  // prefer an in-season league among the matches; else first by LEAGUE_KEYS order
+  const inSeason = hits.filter(inSeasonNow);
+  return (inSeason[0] ?? hits[0]);
 }
 
 /* ─────────────────────────── date / status formatting ─────────────────────────── */
@@ -222,14 +299,20 @@ function todayYyyymmdd(): string {
 function liveShort(status: any, league: string): string {
   const t = status?.type ?? {};
   const sd = String(t.shortDetail ?? t.detail ?? '');
+  const lg = LEAGUES[league];
+  const sport = lg?.sport;
   if (/halftime/i.test(sd)) return 'Half';
   if (/delay/i.test(sd)) return 'Delay';
+  // baseball ("Top 7th") and soccer ("63'") — ESPN's own short detail reads best
+  if (sport === 'baseball' || sport === 'soccer') return sd.slice(0, 14) || 'Live';
   if (/end/i.test(sd)) return sd.slice(0, 12);
   const clock = status?.displayClock;
   const period = status?.period;
   if (period) {
-    const pw = period <= 4 ? `Q${period}` : `OT${period > 5 ? period - 4 : ''}`;
-    return clock ? `${pw} ${clock}` : pw;
+    const reg = lg?.regPeriods ?? 4;
+    const pw = lg?.periodWord || 'Q';
+    const label = period <= reg ? `${pw}${period}` : `OT${period - reg > 1 ? period - reg : ''}`;
+    return clock ? `${label} ${clock}` : label;
   }
   return sd.slice(0, 12) || 'Live';
 }
@@ -243,15 +326,21 @@ function sideFrom(comp: any, league: string, state: string): SideLike {
   const rawScore = comp?.score;
   const scoreN = rawScore && typeof rawScore === 'object' ? Number(rawScore.value ?? rawScore.displayValue) : Number(rawScore);
   const ls = Array.isArray(comp?.linescores) ? comp.linescores.map((l: any) => Number(l?.value)).filter((n: number) => Number.isFinite(n)) : [];
+  const logoUrl = str2(team?.logo) ?? str2(team?.logos?.[0]?.href);
   return {
     abbr,
     name: String(team.shortDisplayName ?? team.name ?? team.displayName ?? abbr),
     score: state !== 'pre' && Number.isFinite(scoreN) ? scoreN : undefined,
     record: comp?.records?.[0]?.summary ? String(comp.records[0].summary) : undefined,
-    logo: teamLogo(league, abbr),
+    logo: teamLogo(league, abbr), // atlas fast-path (NFL/NBA); undefined elsewhere → hydrated from logoUrl
+    logoUrl,
     winner: typeof comp?.winner === 'boolean' ? comp.winner : undefined,
     linescores: ls,
   };
+}
+function str2(v: unknown): string | undefined {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return s || undefined;
 }
 
 function periodLabels(g: GameLike): string[] {
@@ -259,7 +348,13 @@ function periodLabels(g: GameLike): string[] {
   const h = g.home?.linescores?.length ?? 0;
   const n = Math.max(a, h);
   if (!n) return [];
-  return Array.from({ length: n }, (_, i) => (i < 4 ? String(i + 1) : i === 4 ? 'OT' : `OT${i - 3}`));
+  const lg = LEAGUES[g.league ?? ''];
+  const reg = lg?.regPeriods ?? 4;
+  const sport = lg?.sport;
+  if (sport === 'baseball') return Array.from({ length: n }, (_, i) => String(i + 1)); // innings (extras just keep counting)
+  return Array.from({ length: n }, (_, i) =>
+    i < reg ? String(i + 1) : sport === 'soccer' ? 'ET' : n - reg === 1 ? 'OT' : `OT${i - reg + 1}`,
+  );
 }
 
 function gameFrom(event: any, league: string): GameLike {
@@ -327,17 +422,31 @@ async function fetchTeamSchedule(league: string, teamId: string): Promise<GameLi
   return [...seen.values()].sort((a, b) => (Date.parse(a.dateISO ?? '') || 0) - (Date.parse(b.dateISO ?? '') || 0));
 }
 
-const NFL_LEADER_CATS: Record<string, string> = { passingYards: 'PASS', rushingYards: 'RUSH', receivingYards: 'REC' };
-const NBA_LEADER_CATS: Record<string, string> = { points: 'PTS', rebounds: 'REB', assists: 'AST', pointsPerGame: 'PPG', reboundsPerGame: 'RPG', assistsPerGame: 'APG' };
+const LEADER_CATS: Record<Sport, Record<string, string>> = {
+  football: { passingYards: 'PASS', rushingYards: 'RUSH', receivingYards: 'REC' },
+  basketball: { points: 'PTS', rebounds: 'REB', assists: 'AST', pointsPerGame: 'PPG', reboundsPerGame: 'RPG', assistsPerGame: 'APG' },
+  baseball: { hits: 'HITS', homeRuns: 'HR', RBIs: 'RBI', battingAverage: 'AVG', strikeouts: 'K', wins: 'W', ERA: 'ERA' },
+  hockey: { points: 'PTS', goals: 'G', assists: 'A', saves: 'SV', goalsAgainst: 'GA' },
+  soccer: { goals: 'G', assists: 'A', shots: 'SH', saves: 'SV' },
+};
+const LEADER_ORDER: Record<Sport, string[]> = {
+  football: ['PASS', 'RUSH', 'REC'],
+  basketball: ['PTS', 'REB', 'AST', 'PPG', 'RPG', 'APG'],
+  baseball: ['HITS', 'HR', 'RBI', 'K', 'W', 'ERA', 'AVG'],
+  hockey: ['PTS', 'G', 'A', 'SV'],
+  soccer: ['G', 'A', 'SH', 'SV'],
+};
 
 function leadersFrom(comp: any, league: string): LeaderLike[] {
-  const catMap = league === 'nba' ? NBA_LEADER_CATS : NFL_LEADER_CATS;
+  const sport = LEAGUES[league]?.sport ?? 'football';
+  const catMap = LEADER_CATS[sport] ?? {};
   const out: LeaderLike[] = [];
   const competitors = Array.isArray(comp?.competitors) ? comp.competitors : [];
   for (const c of competitors) {
     const teamAbbr = String(c?.team?.abbreviation ?? '');
     for (const grp of c?.leaders ?? []) {
-      const cat = catMap[grp?.name];
+      // known category, else fall back to the group's own label so any sport surfaces something
+      const cat = catMap[grp?.name] ?? String(grp?.abbreviation ?? grp?.shortDisplayName ?? grp?.displayName ?? grp?.name ?? '').toUpperCase().slice(0, 6);
       if (!cat) continue;
       const top = grp?.leaders?.[0];
       const ath = top?.athlete ?? {};
@@ -345,8 +454,7 @@ function leadersFrom(comp: any, league: string): LeaderLike[] {
       out.push({ cat, name: String(ath.shortName ?? ath.displayName), team: teamAbbr, value: String(top?.displayValue ?? '') });
     }
   }
-  // one per category, PASS/RUSH/REC or PTS/REB/AST order
-  const order = league === 'nba' ? ['PTS', 'REB', 'AST', 'PPG', 'RPG', 'APG'] : ['PASS', 'RUSH', 'REC'];
+  const order = LEADER_ORDER[sport] ?? [];
   const seen = new Set<string>();
   const ranked: LeaderLike[] = [];
   for (const cat of order) {
@@ -356,7 +464,15 @@ function leadersFrom(comp: any, league: string): LeaderLike[] {
       ranked.push(found);
     }
   }
-  return ranked.length ? ranked : out.slice(0, 6);
+  // fill any remaining unique categories (covers sports not in the order maps)
+  for (const l of out) {
+    if (ranked.length >= 6) break;
+    if (l.cat && !seen.has(l.cat)) {
+      seen.add(l.cat);
+      ranked.push(l);
+    }
+  }
+  return ranked;
 }
 
 function statValStd(stats: any[], names: string[]): string | undefined {
@@ -379,6 +495,7 @@ function mapEntries(entries: any[], league: string): StandingRowLike[] {
       abbr,
       name: String(team.shortDisplayName ?? team.displayName ?? abbr),
       logo: teamLogo(league, abbr),
+      logoUrl: str2(team?.logos?.[0]?.href) ?? str2(team?.logo),
       wins: Number.isFinite(wins) ? wins : undefined,
       losses: Number.isFinite(losses) ? losses : undefined,
       pct,
@@ -470,8 +587,9 @@ interface ToolDef {
 
 const leagueProp = {
   type: 'string',
-  enum: ['nfl', 'nba'],
-  description: 'Which league: "nfl" or "nba". If the user named a team, you can omit this and it will be inferred.',
+  enum: LEAGUE_KEYS,
+  description:
+    'Which league: nfl, nba, mlb, nhl, wnba, cfb (college football), mcbb (men\'s college basketball), epl / ucl / mls (soccer). If the user named a team, omit this and it is inferred (ambiguous names like Cardinals/Giants/Rangers resolve to whichever league is in season).',
 };
 
 /** The rich Google-style team hub (GAMES / STANDINGS / PLAYERS). Shared by sports_team and a
@@ -492,6 +610,9 @@ async function buildTeamHub(league: string, t: TeamRef): Promise<ToolResult> {
   const recent = sched.filter((g) => g.state === 'post').reverse();
   const next = upcoming[0];
   const lastDone = recent[0];
+  // inline every logo used in the hub (atlas covers NFL/NBA; others fetched on demand)
+  const hubLogo = teamLogo(league, t.abbr) ?? (await inlineLogo(str2(team_?.logos?.[0]?.href) ?? str2(team_?.logo)));
+  await hydrateLogos([...gameSides(upcoming.slice(0, 5)), ...gameSides(recent.slice(0, 4)), ...div.rows]);
   return {
     speak: `${t.display}${record ? ` are ${record}` : ''}${standingSummary ? `, ${standingSummary}` : ''}.${next ? ` Next: ${scoreLine(next)}.` : ''}`,
     facts: {
@@ -507,7 +628,7 @@ async function buildTeamHub(league: string, t: TeamRef): Promise<ToolResult> {
       hub: {
         league,
         name: team_?.displayName ? String(team_.displayName) : t.display,
-        logo: teamLogo(league, t.abbr),
+        logo: hubLogo,
         color,
         record,
         standing: standingSummary,
@@ -527,7 +648,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'sports_scores',
     description:
-      'Live and recent scores as a native scoreboard. Use for "what games are on", "scores", "who\'s winning", "what\'s the score", "did the Lakers win", "NFL scores today". Shows every game for the day with live score, quarter/clock, or start time; the user can tap any game to see the box score, leaders, odds and win probability without leaving VoiceOS. Read-only. Pass a team to jump to that team\'s game.',
+      'Live and recent scores as a native scoreboard for ANY league — NFL, NBA, MLB, NHL, WNBA, college football (cfb), college basketball (mcbb), soccer (epl/ucl/mls). Use for "what games are on", "scores", "who\'s winning", "did the Lakers win", "MLB scores today". Shows every game with live score, period/clock/inning, or start time; tap any game for the box score, leaders, odds and win probability without leaving VoiceOS. Knows when a league is off-season. Read-only. Pass a team to jump to that team\'s game.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -546,8 +667,14 @@ const TOOLS: ToolDef[] = [
       if (date) dateParam = `?dates=${date.replace(/-/g, '')}`;
       const d = await getJson(`${SITE}/${lg.path}/scoreboard${dateParam}`);
       let events: any[] = Array.isArray(d?.events) ? d.events : [];
-      if (!events.length) return { speak: `No ${lg.label} games found for that day.`, card: scoreboardCard({ league, title: `${lg.label} scores`, games: [], emptyHint: 'No games on the schedule.' }) };
+      const note = seasonNote(league);
+      if (!events.length) {
+        const off = !inSeasonNow(league);
+        const hint = off ? `The ${lg.label} season is between games — it starts ${lg.startsLabel}.` : 'No games on the schedule for that day.';
+        return { speak: off ? hint : `No ${lg.label} games ${date ? 'for that day' : 'right now'}.`, facts: { league, count: 0, offSeason: off }, card: scoreboardCard({ league, title: `${lg.label} scores`, games: [], emptyHint: hint }) };
+      }
       let games = events.map((e) => gameFrom(e, league));
+      await hydrateLogos(gameSides(games));
       // focus a team if asked → put it first
       if (team) {
         const t = await resolveTeam(league, team);
@@ -570,7 +697,7 @@ const TOOLS: ToolDef[] = [
       return {
         speak: `${lg.label}: ${top}${games.length > 3 ? `, and ${games.length - 3} more` : ''}.`,
         facts: { league, count: games.length, live, finals, games: games.map((g) => ({ id: g.id, matchup: `${g.away?.abbr} @ ${g.home?.abbr}`, state: g.state, status: g.statusShort, away: { abbr: g.away?.abbr, score: g.away?.score }, home: { abbr: g.home?.abbr, score: g.home?.score }, when: g.when, dateShort: g.dateShort })) },
-        card: scoreboardCard({ league, title: `${lg.label} scores`, trailing, games, leadersByGame }),
+        card: scoreboardCard({ league, title: `${lg.label} scores`, trailing, games, leadersByGame, note }),
       };
     },
   },
@@ -629,6 +756,7 @@ const TOOLS: ToolDef[] = [
         if (Number.isFinite(hp)) g.homeWinPct = hp <= 1 ? hp * 100 : hp;
       }
       if (!g.venue && sum?.gameInfo?.venue?.fullName) g.venue = String(sum.gameInfo.venue.fullName);
+      await hydrateLogos([g.away, g.home]);
       return {
         speak: `${scoreLine(g)}.${leaders.length ? ' Leaders: ' + leaders.map((l) => `${l.name} ${l.value}`).join(', ') + '.' : ''}`,
         facts: { league, game_id: eventId, matchup: `${g.away?.abbr} @ ${g.home?.abbr}`, state: g.state, status: g.statusShort, away: { abbr: g.away?.abbr, score: g.away?.score, byPeriod: g.away?.linescores }, home: { abbr: g.home?.abbr, score: g.home?.score, byPeriod: g.home?.linescores }, leaders, odds: g.odds, winProbHome: g.homeWinPct },
@@ -665,6 +793,7 @@ const TOOLS: ToolDef[] = [
       const games = (d?.events ?? []).map((e: any) => gameFrom(e, league));
       const upcoming = games.filter((g: GameLike) => g.state !== 'post');
       const show = (upcoming.length ? upcoming : games).slice(0, 10);
+      await hydrateLogos(gameSides(show));
       return {
         speak: show.length ? `${lg.label}: ${show.slice(0, 3).map(scoreLine).join('; ')}${show.length > 3 ? `, and ${show.length - 3} more` : ''}.` : `No ${lg.label} games scheduled.`,
         facts: { league, count: show.length, games: show.map((g: GameLike) => ({ matchup: `${g.away?.abbr} @ ${g.home?.abbr}`, when: g.when, dateShort: g.dateShort, state: g.state })) },
@@ -754,6 +883,7 @@ const TOOLS: ToolDef[] = [
           abbr,
           name: String(team.shortDisplayName ?? team.displayName ?? abbr),
           logo: teamLogo(league, abbr),
+          logoUrl: str2(team?.logos?.[0]?.href) ?? str2(team?.logo),
           wins: Number.isFinite(wins) ? wins : undefined,
           losses: Number.isFinite(losses) ? losses : undefined,
           pct: pctRaw,
@@ -763,12 +893,15 @@ const TOOLS: ToolDef[] = [
       });
       // ESPN entries aren't always pre-ranked → order by win pct, then reassign rank.
       rows = (rows as (StandingRowLike & { _sort: number })[]).sort((a, b) => b._sort - a._sort).map((r, i) => ({ ...r, rank: i + 1 }));
+      await hydrateLogos(rows);
+      const note = seasonNote(league); // off-season → "last season's final"
       const title = `${lg.label} standings`;
       const top = rows.slice(0, 3).map((r) => `${r.name} ${r.wins ?? 0}-${r.losses ?? 0}`).join(', ');
+      const prefix = note ? `Last season's final ${bucket.name || lg.label}` : bucket.name || lg.label;
       return {
-        speak: `${bucket.name || lg.label}: ${top}.`,
-        facts: { league, group: bucket.name, teams: rows.map((r) => ({ rank: r.rank, name: r.name, record: `${r.wins ?? 0}-${r.losses ?? 0}`, pct: r.pct })) },
-        card: standingsCard({ league, title: bucket.name ? `${bucket.name}` : title, rows, extraLabel: 'STRK' }),
+        speak: `${prefix}: ${top}.`,
+        facts: { league, group: bucket.name, offSeason: !!note, teams: rows.map((r) => ({ rank: r.rank, name: r.name, record: `${r.wins ?? 0}-${r.losses ?? 0}`, pct: r.pct })) },
+        card: standingsCard({ league, title: bucket.name ? `${bucket.name}` : title, rows, extraLabel: 'STRK', note }),
       };
     },
   },
@@ -802,10 +935,18 @@ const TOOLS: ToolDef[] = [
 
       const web = String(player?.link?.web ?? '');
       const uid = String(player?.uid ?? '');
+      const blob = (web + ' ' + uid + ' ' + String(player?.subtitle ?? '')).toLowerCase();
       let league = hint;
       if (!league) {
-        if (/\/nfl\//.test(web) || /l:28/.test(uid)) league = 'nfl';
-        else if (/\/nba\//.test(web) || /l:46/.test(uid)) league = 'nba';
+        // match a league by its ESPN path segment in the player's URL/uid (nfl, nba, mlb, nhl, wnba,
+        // college-football, mens-college-basketball, eng.1, ...); soccer players often lack a slug.
+        for (const key of LEAGUE_KEYS) {
+          const seg = LEAGUES[key].path.split('/')[1];
+          if (blob.includes('/' + seg + '/') || blob.includes(seg)) {
+            league = key;
+            break;
+          }
+        }
       }
       league = league ?? DEFAULT_LEAGUE;
       const lg = LEAGUES[league];
@@ -854,7 +995,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: 'sports_news',
-    description: 'Latest NFL or NBA headlines. Use for "sports news", "what\'s happening in the NBA", "NFL headlines". Tappable to open the full story. Read-only.',
+    description: 'Latest headlines for any league — NFL, NBA, MLB, NHL, WNBA, college football/basketball, or soccer. Use for "sports news", "what\'s happening in the NBA", "MLB headlines". Tappable to open the full story. Read-only.',
     inputSchema: {
       type: 'object',
       properties: { league: leagueProp },
